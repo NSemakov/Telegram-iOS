@@ -693,7 +693,7 @@ func chatListNodeEntriesForView(view: EngineChatList, state: ChatListNodeState, 
             autoremoveTimeout: entry.autoremoveTimeout,
             forumTopicData: entry.forumTopicData,
             topForumTopicItems: entry.topForumTopicItems,
-            revealed: threadId == 1 && (state.hiddenItemShouldBeTemporaryRevealed || state.editing),
+            revealed: true /*threadId == 1 && (state.hiddenItemShouldBeTemporaryRevealed || state.editing)*/,
             storyState: entry.renderedPeer.peerId == accountPeerId ? nil : entry.storyStats.flatMap { stats -> ChatListNodeState.StoryState in
                 return ChatListNodeState.StoryState(
                     stats: stats,
@@ -830,7 +830,7 @@ func chatListNodeEntriesForView(view: EngineChatList, state: ChatListNodeState, 
                         autoremoveTimeout: item.item.autoremoveTimeout,
                         forumTopicData: item.item.forumTopicData,
                         topForumTopicItems: item.item.topForumTopicItems,
-                        revealed: state.hiddenItemShouldBeTemporaryRevealed || state.editing,
+                        revealed: true /*state.hiddenItemShouldBeTemporaryRevealed || state.editing*/,
                         storyState: nil
                     )))
                     if pinningIndex != 0 {
@@ -855,7 +855,7 @@ func chatListNodeEntriesForView(view: EngineChatList, state: ChatListNodeState, 
                     message: groupReference.topMessage,
                     editing: state.editing,
                     unreadCount: groupReference.unreadCount,
-                    revealed: state.hiddenItemShouldBeTemporaryRevealed,
+                    revealed: true /*state.hiddenItemShouldBeTemporaryRevealed*/,
                     hiddenByDefault: hideArchivedFolderByDefault,
                     storyState: mappedStoryState
                 )))
