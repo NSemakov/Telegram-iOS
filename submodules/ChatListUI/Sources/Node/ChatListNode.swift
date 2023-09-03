@@ -2337,13 +2337,13 @@ public final class ChatListNode: ListView {
                     disableAnimations = false
                 }
                 if hideArchivedFolderByDefault && previousState.hiddenItemShouldBeTemporaryRevealed != state.hiddenItemShouldBeTemporaryRevealed && doesIncludeArchive {
-                    disableAnimations = false
+                    disableAnimations = true
                 }
                 if didIncludeHiddenByDefaultArchive != doesIncludeHiddenByDefaultArchive {
                     disableAnimations = false
                 }
                 if previousState.hiddenItemShouldBeTemporaryRevealed != state.hiddenItemShouldBeTemporaryRevealed && doesIncludeHiddenThread {
-                    disableAnimations = false
+                    disableAnimations = true
                 }
                 if didIncludeHiddenThread != doesIncludeHiddenThread {
                     disableAnimations = false
@@ -2435,9 +2435,12 @@ public final class ChatListNode: ListView {
                     }
                 }
                 if !isHiddenItemVisible && strongSelf.currentState.hiddenItemShouldBeTemporaryRevealed {
-                    strongSelf.updateState { state in
+                    strongSelf.updateState { [weak self] state in
+                        guard let self = self else { return state }
                         var state = state
                         state.hiddenItemShouldBeTemporaryRevealed = false
+                        self.updateInsetForArchive(topInset: 119)
+                        self.scroller.contentOffset = CGPoint(x: self.scroller.contentOffset.x, y: self.scroller.contentOffset.y - 76.0)
                         return state
                     }
                 }
@@ -3316,6 +3319,11 @@ public final class ChatListNode: ListView {
     
     public var ignoreStoryInsetAdjustment: Bool = false
     private var previousStoriesInset: CGFloat?
+
+    public func updateInsetForArchive(topInset: CGFloat, duration: Double? = nil) {
+        let immediateInsetDelta: CGFloat = 0 // self.insets.top - topInset
+        self.transaction(deleteIndices: [], insertIndicesAndItems: [], updateIndicesAndItems: [], options: [.Synchronous], scrollToItem: nil, additionalScrollDistance: immediateInsetDelta, updateSizeAndInsets: ListViewUpdateSizeAndInsets(size: self.visibleSize, insets: UIEdgeInsets(top: topInset, left: self.insets.left, bottom: self.insets.bottom, right: self.insets.right), duration: duration ?? 0.0, curve: .Default(duration: duration ?? 0.0)), stationaryItemRange: nil, updateOpaqueState: nil, completion: { _ in })
+    }
     
     public func updateLayout(transition: ContainedViewLayoutTransition, updateSizeAndInsets: ListViewUpdateSizeAndInsets, visibleTopInset: CGFloat, originalTopInset: CGFloat, storiesInset: CGFloat, inlineNavigationLocation: ChatListControllerLocation?, inlineNavigationTransitionFraction: CGFloat) {
         //print("inset: \(updateSizeAndInsets.insets.top)")
