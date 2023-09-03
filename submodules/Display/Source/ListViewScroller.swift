@@ -3,9 +3,44 @@ import UIKit
 public final class ListViewScroller: UIScrollView, UIGestureRecognizerDelegate {
     override public init(frame: CGRect) {
         super.init(frame: frame)
+
+//        print("!! ListViewScroller: \(self)")
         
         self.scrollsToTop = false
         self.contentInsetAdjustmentBehavior = .never
+    }
+    var firstTime = true
+    public override var contentOffset: CGPoint {
+        didSet {
+            if !firstTime && contentOffset.y > -60 {
+                let _ = 2
+            } else if firstTime && contentOffset.y < -79 {
+                firstTime = false
+            }
+        }
+    }
+    var firstTime2 = true
+    public override func setContentOffset(_ contentOffset: CGPoint, animated: Bool) {
+        super.setContentOffset(contentOffset, animated: animated)
+
+        if !firstTime2 && contentOffset.y > -60 {
+            let _ = 2
+        } else if firstTime2 && contentOffset.y < -79 {
+            firstTime2 = false
+        }
+    }
+
+//    var firstTime3 = true
+    public override var contentInset: UIEdgeInsets {
+
+        didSet {
+            print("!! ListViewScroller contentInset: \(contentInset)")
+//            if !firstTime3 && contentOffset.y > -60 {
+//                let _ = 2
+//            } else if firstTime3 && contentOffset.y < -79 {
+//                firstTime = false
+//            }
+        }
     }
     
     required public init?(coder aDecoder: NSCoder) {
