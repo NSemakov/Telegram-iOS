@@ -237,8 +237,10 @@ final class MediaNavigationStripComponent: Component {
                     } else {
                         itemProgress = 0.0
                     }
-                    
-                    transition.setFrame(layer: itemLayer.foregroundLayer, frame: CGRect(origin: CGPoint(x: 0.0, y: 0.0), size: CGSize(width: itemProgress * itemFrame.width, height: itemFrame.height)))
+
+                    let frame = CGRect(origin: CGPoint(x: 0.0, y: 0.0), size: CGSize(width: itemProgress * itemFrame.width, height: itemFrame.height))
+                    transition.setFrame(layer: itemLayer.foregroundLayer, frame: frame)
+                    print("!! frame: \(frame)")
                     itemLayer.updateIsBuffering(size: itemFrame.size, isBuffering: itemIsBuffering)
                 }
             }
