@@ -11,6 +11,8 @@ import AccountContext
 import SearchBarNode
 import SearchUI
 import ContextUI
+import Lottie
+import AnimationUI
 import AnimationCache
 import MultiAnimationRenderer
 import TelegramUIPreferences
@@ -352,7 +354,7 @@ private final class ChatListContainerItemNode: ASDisplayNode {
     let listNode: ChatListNode
     
     private var topPanel: TopPanelItem?
-    
+
     private var pollFilterUpdatesDisposable: Disposable?
     private var chatFilterUpdatesDisposable: Disposable?
     private var peerDataDisposable: Disposable?
@@ -1721,7 +1723,8 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
     private var presentationData: PresentationData
     private let animationCache: AnimationCache
     private let animationRenderer: MultiAnimationRenderer
-    
+    private var currentInsets: UIEdgeInsets = .zero
+
     let mainContainerNode: ChatListContainerNode
     
     var effectiveContainerNode: ChatListContainerNode {
@@ -1740,6 +1743,7 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
     private var tapRecognizer: UITapGestureRecognizer?
     var navigationBar: NavigationBar?
     let navigationBarView = ComponentView<Empty>()
+    var archiveLoadingView = ArchiveLoadingView(frame: CGRect(origin: CGPoint.zero, size: CGSize(width: 100, height: 100)))
     weak var controller: ChatListControllerImpl?
     
     var toolbar: Toolbar?
@@ -1779,7 +1783,7 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
     var emptyListAction: ((EnginePeer.Id?) -> Void)?
     var cancelEditing: (() -> Void)?
 
-    let debugListView = ListView()
+//    let debugListView = ListView()
     
     init(context: AccountContext, location: ChatListControllerLocation, previewing: Bool, controlsHistoryPreload: Bool, presentationData: PresentationData, animationCache: AnimationCache, animationRenderer: MultiAnimationRenderer, controller: ChatListControllerImpl) {
         self.context = context
@@ -1830,7 +1834,7 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
             return self?.shouldStopScrolling(listView: listView, velocity: velocity, isPrimary: true) ?? false
         }
         
-        self.addSubnode(self.debugListView)
+//        self.addSubnode(self.debugListView)
         
         filterBecameEmpty = { [weak self] _ in
             guard let strongSelf = self else {
@@ -1911,7 +1915,7 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
         self.inlineContentPanRecognizer = inlineContentPanRecognizer
         self.view.addGestureRecognizer(inlineContentPanRecognizer)
     }
-    
+
     override func didLoad() {
         super.didLoad()
         
@@ -2097,7 +2101,7 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
             return (0.0, 0.0)
         }
     }
-    
+
     private func updateNavigationScrolling(navigationHeight: CGFloat, transition: ContainedViewLayoutTransition) {
         var mainOffset: CGFloat
         if let contentOffset = self.mainContainerNode.contentOffset, case let .known(value) = contentOffset {
@@ -2130,11 +2134,15 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
         } else {
             resultingOffset = mainOffset
         }
-        
-        var offset = resultingOffset
+
+//        print("!! offset for navigation: \(resultingOffset)")
+
+        // MARK: - offset 0
+        var offset = resultingOffset// / 10.0
         if self.isSearchDisplayControllerActive {
             offset = 0.0
         }
+        offset = 0.0
         
         var allowAvatarsExpansion: Bool = true
         if !self.mainContainerNode.currentItemNode.startedScrollingAtUpperBound && !self.tempAllowAvatarExpansion {
@@ -2185,7 +2193,7 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
             tempNavigationScrollingTransition = nil
         }
     }
-    
+
     func containerLayoutUpdated(_ layout: ContainerViewLayout, navigationBarHeight: CGFloat, visualNavigationHeight: CGFloat, cleanNavigationBarHeight: CGFloat, storiesInset: CGFloat, transition: ContainedViewLayoutTransition) {
         var navigationBarHeight = navigationBarHeight
         var visualNavigationHeight = visualNavigationHeight
@@ -2193,7 +2201,7 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
         var storiesInset = storiesInset
         
         let navigationBarLayout = self.updateNavigationBar(layout: layout, deferScrollApplication: true, transition: Transition(transition))
-        self.mainContainerNode.initialScrollingOffset = ChatListNavigationBar.searchScrollHeight + navigationBarLayout.storiesInset
+        self.mainContainerNode.initialScrollingOffset = /*ChatListNavigationBar.searchScrollHeight +*/ navigationBarLayout.storiesInset
         
         navigationBarHeight = navigationBarLayout.navigationHeight
         visualNavigationHeight = navigationBarLayout.navigationHeight
@@ -2206,6 +2214,7 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
         insets.top += navigationBarHeight
         insets.left += layout.safeInsets.left
         insets.right += layout.safeInsets.right
+//        self.updateArchiveLoadingView(navigationHeight: insets.top)
         
         if let toolbar = self.toolbar {
             var tabBarHeight: CGFloat
@@ -2227,7 +2236,7 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
                 tabBarHeight = 49.0 - heightInset + bottomInset
                 insets.bottom += 49.0 - heightInset
             }
-            
+
             let toolbarFrame = CGRect(origin: CGPoint(x: 0.0, y: layout.size.height - tabBarHeight), size: CGSize(width: layout.size.width, height: tabBarHeight))
             
             if let toolbarNode = self.toolbarNode {
@@ -2255,7 +2264,7 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
                 toolbarNode?.removeFromSupernode()
             })
         }
-        
+        self.currentInsets = insets
         var childrenLayout = layout
         childrenLayout.intrinsicInsets = UIEdgeInsets(top: visualNavigationHeight, left: childrenLayout.intrinsicInsets.left, bottom: childrenLayout.intrinsicInsets.bottom, right: childrenLayout.intrinsicInsets.right)
         self.controller?.presentationContext.containerLayoutUpdated(childrenLayout, transition: transition)
@@ -2269,6 +2278,18 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
             cleanMainNavigationBarHeight = visualNavigationHeight
             mainInsets.top = visualNavigationHeight
         }
+        let hiddenItemShouldBeRevealed = self.mainContainerNode.currentItemNode.currentState.hiddenItemShouldBeTemporaryRevealed
+        let hasItemsToBeRevealed = self.mainContainerNode.currentItemNode.hasItemsToBeRevealed()
+        if hiddenItemShouldBeRevealed && hasItemsToBeRevealed {
+            mainInsets.top = insets.top
+        } else if hiddenItemShouldBeRevealed && !hasItemsToBeRevealed {
+            mainInsets.top = insets.top
+        } else if !hiddenItemShouldBeRevealed && hasItemsToBeRevealed {
+            mainInsets.top = insets.top - 76.0
+        } else if !hiddenItemShouldBeRevealed && !hasItemsToBeRevealed {
+            mainInsets.top = insets.top
+        }
+
         self.mainContainerNode.update(layout: layout, navigationBarHeight: mainNavigationBarHeight, visualNavigationHeight: visualNavigationHeight, originalNavigationHeight: navigationBarHeight, cleanNavigationBarHeight: cleanMainNavigationBarHeight, insets: mainInsets, isReorderingFilters: self.isReorderingFilters, isEditing: self.isEditing, inlineNavigationLocation: self.inlineStackContainerNode?.location, inlineNavigationTransitionFraction: self.inlineStackContainerTransitionFraction, storiesInset: storiesInset, transition: transition)
         
         if let inlineStackContainerNode = self.inlineStackContainerNode {
@@ -2377,7 +2398,7 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
                         navigationBarComponentView.addSubnode(subnode)
                     }
                 } else {
-                    self.insertSubnode(subnode, aboveSubnode: self.debugListView)
+//                    self.insertSubnode(subnode, aboveSubnode: self.debugListView)
                 }
             }, placeholder: placeholderNode, focus: focus)
             
@@ -2424,13 +2445,37 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
             return
         }
         self.updateNavigationScrolling(navigationHeight: containerLayout.navigationBarHeight, transition: self.tempNavigationScrollingTransition ?? .immediate)
+
+        // MARK: - add ArchiveLoadingView
+        if self.mainContainerNode.currentItemNode.hasItemsToBeRevealed() {
+            self.updateArchiveLoadingView(navigationHeight: self.currentInsets.top)
+        }
+
+        // MARK: - archiveLoadingView.updateView(offset
+        if case let .known(value) = offset {
+            let velocity = listView.scroller.panGestureRecognizer.velocity(in: listView.scroller.superview)
+            let isIncreasing = velocity.y > 0
+//            print("!! velocity.y: \(velocity.y)")
+            if !self.afterRelease && self.mainContainerNode.currentItemNode.hasItemsToBeRevealed() {
+                let offsetForArchiveLoadingView = value
+                archiveLoadingView.updateView(offset: offsetForArchiveLoadingView, isIncreasing: isIncreasing)
+            } else if !self.afterRelease && !self.mainContainerNode.currentItemNode.hasItemsToBeRevealed() {
+                // ...
+            } else if self.afterRelease && !self.mainContainerNode.currentItemNode.hasItemsToBeRevealed() {
+                let offsetForArchiveLoadingView = value - 76.0
+                archiveLoadingView.updateViewOffsetAfterRelease(offset: offsetForArchiveLoadingView)
+            } else if self.afterRelease && self.mainContainerNode.currentItemNode.hasItemsToBeRevealed() {
+                // ...
+            }
+        }
+
         
         if listView.isDragging {
             var overscrollSelectedId: EnginePeer.Id?
-            var overscrollHiddenChatItemsAllowed = false
+//            var overscrollHiddenChatItemsAllowed = false
             if let controller = self.controller, let componentView = controller.chatListHeaderView(), let storyPeerListView = componentView.storyPeerListView() {
                 overscrollSelectedId = storyPeerListView.overscrollSelectedId
-                overscrollHiddenChatItemsAllowed = storyPeerListView.overscrollHiddenChatItemsAllowed
+//                overscrollHiddenChatItemsAllowed = storyPeerListView.overscrollHiddenChatItemsAllowed
             }
             
             if let chatListNode = listView as? ChatListNode {
@@ -2459,42 +2504,7 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
                         }
                     }
                 } else {
-                    if !overscrollHiddenChatItemsAllowed {
-                        var manuallyAllow = false
-                        
-                        if isPrimary {
-                            if let storySubscriptions = controller.orderedStorySubscriptions, shouldDisplayStoriesInChatListHeader(storySubscriptions: storySubscriptions, isHidden: controller.location == .chatList(groupId: .archive)) {
-                            } else {
-                                manuallyAllow = true
-                            }
-                        } else {
-                            manuallyAllow = true
-                        }
-                        
-                        if manuallyAllow, case let .known(value) = offset, value + listView.tempTopInset <= -40.0 {
-                            overscrollHiddenChatItemsAllowed = true
-                        }
-                    }
-                
-                    if overscrollHiddenChatItemsAllowed {
-                        if self.allowOverscrollItemExpansion {
-                            let timestamp = CACurrentMediaTime()
-                            if let _ = self.currentOverscrollItemExpansionTimestamp {
-                            } else {
-                                self.currentOverscrollItemExpansionTimestamp = timestamp
-                            }
-                            
-                            if let currentOverscrollItemExpansionTimestamp = self.currentOverscrollItemExpansionTimestamp, currentOverscrollItemExpansionTimestamp <= timestamp - 0.0 {
-                                self.allowOverscrollItemExpansion = false
-                                
-                                if isPrimary {
-                                    self.mainContainerNode.currentItemNode.revealScrollHiddenItem()
-                                } else {
-                                    self.inlineStackContainerNode?.currentItemNode.revealScrollHiddenItem()
-                                }
-                            }
-                        }
-                    }
+//
                 }
             }
         }
@@ -2535,13 +2545,55 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
             }
         }
         self.allowOverscrollItemExpansion = true
+        self.afterRelease = false
     }
-    
+    private var afterRelease = false
     private func endedInteractiveDragging(listView: ListView, isPrimary: Bool) {
         if isPrimary {
             self.allowOverscrollStoryExpansion = false
             self.currentOverscrollStoryExpansionTimestamp = nil
         }
+
+
+        let offset = listView.scroller.contentOffset.y
+
+        var overscrollHiddenChatItemsAllowed = false
+        if let controller = self.controller, let componentView = controller.chatListHeaderView(), let storyPeerListView = componentView.storyPeerListView() {
+//            overscrollSelectedId = storyPeerListView.overscrollSelectedId
+                overscrollHiddenChatItemsAllowed = storyPeerListView.overscrollHiddenChatItemsAllowed
+        }
+        if !overscrollHiddenChatItemsAllowed {
+            let manuallyAllow = true
+
+
+            if manuallyAllow, offset + listView.tempTopInset <= -90.0 {
+                overscrollHiddenChatItemsAllowed = true
+            } else {
+                overscrollHiddenChatItemsAllowed = false
+            }
+        }
+
+        if overscrollHiddenChatItemsAllowed {
+            if self.allowOverscrollItemExpansion {
+                self.allowOverscrollItemExpansion = false
+                if isPrimary {
+                    // MARK: - listView.tempTopInset <= -90.0 main, revealScrollHiddenItem
+
+                    if self.mainContainerNode.currentItemNode.hasItemsToBeRevealed() {
+                        self.mainContainerNode.currentItemNode.revealScrollHiddenItem()
+                        self.mainContainerNode.currentItemNode.updateInsetForArchive(topInset: self.currentInsets.top)
+                        self.mainContainerNode.currentItemNode.fixContentOffset(offset: offset + 76)
+                        listView.ignoreNextScrollAdjustment = true
+//                        print("!! resultOffset: \(offset + 75)")
+                        self.afterRelease = true
+                        archiveLoadingView.updateAfterRelease()
+                    }
+                } else {
+                    self.inlineStackContainerNode?.currentItemNode.revealScrollHiddenItem()
+                }
+            }
+        }
+
         self.allowOverscrollItemExpansion = false
         self.currentOverscrollItemExpansionTimestamp = nil
     }
@@ -2708,6 +2760,17 @@ final class ChatListControllerNode: ASDisplayNode, UIGestureRecognizerDelegate {
             self.mainContainerNode.tempTopInset = 0.0
         }
     }
+
+    private func updateArchiveLoadingView(navigationHeight: CGFloat) {
+        archiveLoadingView.frame = CGRect(origin: CGPoint(x: .zero, y: navigationHeight), size: CGSize(width: self.view.frame.width, height: .zero))
+
+        if self.archiveLoadingView.superview == nil {
+            if let navBarView = self.navigationBarView.view {
+                self.view.insertSubview(self.archiveLoadingView, belowSubview: navBarView)
+                self.archiveLoadingView.prepareForReuse()
+            }
+        }
+    }
 }
 
 func shouldDisplayStoriesInChatListHeader(storySubscriptions: EngineStorySubscriptions, isHidden: Bool) -> Bool {
@@ -2720,4 +2783,444 @@ func shouldDisplayStoriesInChatListHeader(storySubscriptions: EngineStorySubscri
         }
     }
     return false
+}
+
+final class GreyGradientView: UIView {
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        setupView()
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder)
+        setupView()
+    }
+
+    private func setupView() {
+        guard let theLayer = self.layer as? CAGradientLayer else {
+            return;
+        }
+
+        theLayer.colors = [Constants.greyColorType1, Constants.greyColorType2]
+        theLayer.startPoint = CGPoint(x: 0.0, y: 0.5)
+        theLayer.endPoint = CGPoint(x: 1.0, y: 0.5)
+        theLayer.frame = self.bounds
+    }
+
+    override class var layerClass: AnyClass {
+        return CAGradientLayer.self
+    }
+
+    private struct Constants {
+        static let greyColorType1 = UIColor(red: 180.0 / 255.0, green: 184.0 / 255.0, blue: 190.0 / 255.0, alpha: 1.0).cgColor
+        static let greyColorType2 = UIColor(red: 217.0 / 255.0, green: 217.0 / 255.0, blue: 223.0 / 255.0, alpha: 1.0).cgColor
+    }
+}
+
+final class BlueGradientView: UIView {
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        setupView()
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder)
+        setupView()
+    }
+
+    private func setupView() {
+        guard let theLayer = self.layer as? CAGradientLayer else {
+            return;
+        }
+
+        theLayer.colors = [Constants.blueColorType1, Constants.blueColorType2]
+        theLayer.type = .radial
+        theLayer.startPoint = CGPoint(x: 0.5, y: 0.5)
+        theLayer.endPoint = CGPoint(x: 1.0, y: 1.0)
+        theLayer.frame = self.bounds
+
+        updateRadius()
+    }
+
+    func updateRadius() {
+        let pathWithRadius = UIBezierPath(roundedRect: self.bounds, cornerRadius: self.bounds.width / 2)
+        self.maskLayer.path = pathWithRadius.cgPath
+        self.layer.mask = maskLayer
+    }
+
+    override class var layerClass: AnyClass {
+        return CAGradientLayer.self
+    }
+
+    private let maskLayer = CAShapeLayer()
+    private struct Constants {
+        static let blueColorType1 = UIColor(red: 60.0 / 255.0, green: 132.0 / 255.0, blue: 235.0 / 255.0, alpha: 1.0).cgColor
+        static let blueColorType2 = UIColor(red: 136.0 / 255.0, green: 195.0 / 255.0, blue: 248.0 / 255.0, alpha: 1.0).cgColor
+    }
+}
+
+final class TraceView: UIView {
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        setupView()
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        super.init(coder: aDecoder)
+        setupView()
+    }
+
+    private func setupView() {
+        self.backgroundColor = Constants.backgroundColor
+        updateRadius()
+    }
+
+    func updateRadius() {
+        let pathWithRadius = UIBezierPath(roundedRect: self.bounds, cornerRadius: self.bounds.width / 2)
+        self.maskLayer.path = pathWithRadius.cgPath
+        self.layer.mask = maskLayer
+    }
+
+    private let maskLayer = CAShapeLayer()
+    private struct Constants {
+        static let backgroundColor = UIColor(red: 204 / 255.0, green: 207 / 255.0, blue: 212 / 255.0, alpha: 1.0)
+    }
+}
+
+open class ArchiveLoadingView: UIView {
+// MARK: - Constructors
+
+    required public init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    public override init(frame: CGRect) {
+        super.init(frame: frame)
+        setUpView()
+    }
+
+// MARK: - Methods
+
+    open func prepareForReuse() {
+        self.arrowView.currentProgress = 0
+        self.greyGradientView.alpha = 1.0
+        self.arrowView.frame.size = CGSize(width: 50.0, height: 50.0)
+        self.blueGradientView.alpha = 1.0
+    }
+
+    open func updateViewOffsetAfterRelease(offset: CGFloat) {
+        let progressTrigger = -offset
+        var visibleHeight = -offset
+        if progressTrigger < Constants.lowerProgressOffsetBound {
+            visibleHeight = Constants.lowerProgressOffsetBound
+        }
+
+        let oldFrame = self.frame
+        let newHeight = visibleHeight
+        let newFrame = CGRect(x: oldFrame.minX, y: oldFrame.minY, width: oldFrame.width, height: newHeight)
+        self.frame = newFrame
+    }
+
+    open func updateView(offset: CGFloat, isIncreasing: Bool) {
+//        print("!! isIncreasing: \(isIncreasing)")
+
+        let progressTriggerUnlim = -offset
+        var progressTrigger = -offset
+        var visibleHeight = -offset
+        if progressTrigger < Constants.lowerProgressOffsetBound {
+            progressTrigger = Constants.lowerProgressOffsetBound
+            visibleHeight = Constants.lowerProgressOffsetBound
+        } else if progressTrigger > Constants.upperProgressOffsetBound {
+            progressTrigger = Constants.upperProgressOffsetBound
+        }
+
+        let progressInPercent = self.progressPercentCoefficients.a * progressTrigger + self.progressPercentCoefficients.b
+        let progressInPercentUnlim = self.progressPercentCoefficients.a * progressTriggerUnlim + self.progressPercentCoefficients.b
+
+        let oldFrame = self.frame
+        let newHeight = visibleHeight
+        let newFrame = CGRect(x: oldFrame.minX, y: oldFrame.minY, width: oldFrame.width, height: newHeight)
+        self.frame = newFrame
+
+        if self.greyGradientView.frame != self.bounds {
+            self.greyGradientView.frame = self.bounds
+        }
+
+//        let bottomY = newFrame.maxY
+//        let centerX = newFrame.center.x
+        updateActionCallLabel(isIncreasing: isIncreasing, progress: progressInPercent)
+        updateBlueGradientView(isIncreasing: isIncreasing, progress: progressInPercent)
+        updateArrowView(progress: progressInPercent)
+        updateTraceView(progress: progressInPercentUnlim)
+        updateReleaseLabel(progress: progressInPercent)
+        updateReleaseCropView()
+//        print("!! offset: \(offset); progress: \(progressTrigger); visibleHeight: \(visibleHeight); oldFrame: \(oldFrame); newFrame: \(newFrame); greyGradientView: \(greyGradientView); hasSuperView: \(self.superview != nil)")
+    }
+
+    open func updateAfterRelease() {
+        self.greyGradientView.alpha = 0
+        self.arrowView.animationSpeed = 0.7
+        self.arrowView.play { _ in
+            self.removeFromSuperview()
+        }
+        updateBlueGradientAfterRelease()
+//        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+//            self.removeFromSuperview()
+////            print("!! removeFromSuperview")
+//        }
+    }
+
+// MARK: - Private Methods
+
+//    private func updateArrowViewAfterRelease() {
+//
+//    }
+
+    private func updateBlueGradientAfterRelease() {
+        UIView.animate(withDuration: 0.5) {
+            self.blueGradientView.alpha = 0.0
+//            self.blueGradientView.frame = CGRect(center: CGPoint(x: 35.0, y: 40), size: CGSize(width: 76.0, height: 76.0))
+            self.arrowView.frame = CGRect(center: CGPoint(x: 35.0, y: 40), size: CGSize(width: 76.0, height: 76.0))
+            self.traceView.frame = CGRect(center: CGPoint(x: 35.0, y: 40), size: CGSize(width: 0.0, height: 0.0))
+            self.releaseLabel.alpha = 0.0
+        }
+    }
+
+    private func updateReleaseCropView() {
+        self.releaseCropView.frame = CGRect(origin: CGPoint(x: 26, y: 0), size: CGSize(width: UIScreen.main.bounds.width, height: self.bounds.height))
+    }
+
+    // progress 0 to 100 (%)
+    private func updateTraceView(progress: CGFloat) {
+        let bottomY = self.bounds.maxY
+        let bottomYDiff: CGFloat = 16
+        let topY: CGFloat = 8
+        let height = (bottomY - bottomYDiff) - topY + 5
+        if progress > 30 {
+            self.traceView.frame = CGRect(origin: CGPoint(x: 26, y: topY), size: CGSize(width: 17, height: height))
+        } else {
+            self.traceView.frame = CGRect(origin: CGPoint(x: 26, y: topY), size: CGSize(width: 0, height: 0))
+        }
+        self.traceView.updateRadius()
+    }
+
+    // progress 0 to 100 (%)
+    private func updateArrowView(progress: CGFloat) {
+        let bottomY = self.bounds.maxY
+        let bottomYDiff: CGFloat = 16
+
+        if progress < Constants.actionCallIncreasingMovingThreshold {
+//            arrowView.frame = CGRect(center: CGPoint(x: 35, y: bottomY - bottomYDiff), size: CGSize(width: 50, height: 50))
+            arrowView.center = CGPoint(x: 35, y: bottomY - bottomYDiff)
+            arrowView.transform = CGAffineTransformMakeRotation(.pi) //arrowView.transform.rotated(by: .pi)
+//            print("!! arrowView.transform: \(arrowView.transform)")
+        } else {
+            let angle = self.arrowViewAngleCoefficients.a * progress + self.arrowViewAngleCoefficients.b
+            var transform = CGAffineTransformIdentity
+            transform = CGAffineTransformRotate(transform, angle)
+            arrowView.transform = transform//CGAffineTransformMakeRotation(angle)
+            arrowView.center = CGPoint(x: 35, y: bottomY - bottomYDiff)// frame.center = CGRect(center: CGPoint(x: 35, y: bottomY - bottomYDiff), size: CGSize(width: 50, height: 50))
+//            arrowView.layer.borderColor = (UIColor.red).cgColor
+//            arrowView.layer.borderWidth = 2.0
+//            print("!! arrowView.transform: \(arrowView.transform), angle: \(angle * 180 / .pi)")
+        }
+    }
+
+    // progress 0 to 100 (%)
+    private func updateBlueGradientView(isIncreasing: Bool, progress: CGFloat) {
+        let bottomY = self.bounds.maxY
+        let bottomYDiff: CGFloat = 16
+        if progress > Constants.actionCallIncreasingMovingThreshold {
+            let newFrameWidth = self.blueGradientViewFrameWidthCoefficients.a * progress + self.blueGradientViewFrameWidthCoefficients.b
+            self.blueGradientView.frame = CGRect(center: CGPoint(x: 35, y: bottomY - bottomYDiff), size: CGSize(width: newFrameWidth, height: newFrameWidth))
+        } else {
+            self.blueGradientView.frame = .zero
+        }
+
+        self.blueGradientView.updateRadius()
+    }
+
+    // progress 0 to 100 (%)
+    private func updateActionCallLabel(isIncreasing: Bool, progress: CGFloat) {
+        print("!! progress: \(progress)")
+        let bottomY = self.bounds.maxY
+        let bottomYDiff: CGFloat = 16
+//        if isIncreasing {
+            if progress < Constants.actionCallIncreasingMovingThreshold {
+                // Keep in center
+//                print("!! Increasing Keep in center")
+                let actionCallLabelCenterX = self.bounds.center.x
+                let actionCallLabelCenterY = bottomY - bottomYDiff
+                self.actionCallLabel.center = CGPoint(x: actionCallLabelCenterX, y: actionCallLabelCenterY)
+            } else {
+                // Move out of screen
+                let deltaX = self.actionCallLabelMoveXCoefficients.a * progress + self.actionCallLabelMoveXCoefficients.b
+                let actionCallLabelCenterX = self.bounds.center.x + deltaX
+
+                let actionCallLabelCenterY = bottomY - bottomYDiff
+                self.actionCallLabel.center = CGPoint(x: actionCallLabelCenterX, y: actionCallLabelCenterY)
+
+                let alpha = self.actionCallLabelAlphaCoefficients.a * progress + self.actionCallLabelAlphaCoefficients.b
+                self.actionCallLabel.alpha = alpha
+//                print("!! Increasing Move out of screen \(actionCallLabelCenterX); alpha \(alpha)")
+            }
+    }
+
+    private func updateReleaseLabel(progress: CGFloat) {
+        print("!! progress: \(progress)")
+        let bottomY = self.bounds.maxY
+        let bottomYDiff: CGFloat = 16
+            if progress > Constants.actionCallIncreasingMovingThreshold && progress <= 100 {
+                // Move in to screen
+                let deltaX = self.releaseLabelMoveXCoefficients.a * progress + self.releaseLabelMoveXCoefficients.b
+                let releaseLabelCenterX = self.bounds.center.x + deltaX
+
+                let releaseLabelCenterY = bottomY - bottomYDiff
+                self.releaseLabel.center = CGPoint(x: releaseLabelCenterX, y: releaseLabelCenterY)
+
+                let alpha = self.releaseLabelAlphaCoefficients.a * progress + self.releaseLabelAlphaCoefficients.b
+                self.releaseLabel.alpha = alpha
+                //                print("!! Increasing Move out of screen \(actionCallLabelCenterX); alpha \(alpha)")
+            } else if progress <= Constants.actionCallIncreasingMovingThreshold {
+                self.releaseLabel.center = CGPoint(x: -100, y: -100)
+            } else if progress > 100 {
+                // Keep in center
+                let releaseLabelCenterX = self.bounds.center.x
+                let releaseLabelCenterY = bottomY - bottomYDiff
+                self.actionCallLabel.center = CGPoint(x: releaseLabelCenterX, y: releaseLabelCenterY)
+            }
+    }
+
+    private func setUpView() {
+        self.clipsToBounds = true
+        
+        insertSubview(self.greyGradientView, at: 0)
+        self.greyGradientView.frame = self.bounds
+
+        addSubview(self.blueGradientView)
+        self.blueGradientView.frame = .zero
+
+        actionCallLabel.attributedText = NSAttributedString(string: "Swipe down for archive", attributes: [.foregroundColor: UIColor.white, .font: UIFont.systemFont(ofSize: 16, weight: .semibold)])
+        actionCallLabel.sizeToFit()
+        self.addSubview(self.actionCallLabel)
+
+        releaseLabel.attributedText = NSAttributedString(string: "Release for archive", attributes: [.foregroundColor: UIColor.white, .font: UIFont.systemFont(ofSize: 16, weight: .semibold)])
+        releaseLabel.sizeToFit()
+
+        self.releaseCropView.backgroundColor = .clear
+        self.releaseCropView.clipsToBounds = true
+        self.releaseCropView.addSubview(self.releaseLabel)
+        self.addSubview(self.releaseCropView)
+
+        self.addSubview(self.traceView)
+
+        let arrowNode = AnimationNode(animation: "archive", scale: 1.0)
+        self.arrowView = arrowNode.animationView()
+        self.arrowView.frame.size = CGSize(width: 50.0, height: 50.0)
+        self.arrowView.contentMode = .scaleAspectFit
+        self.arrowView.layer.anchorPoint = CGPoint(x: 0.5, y: 0.55)
+//        self.arrowView.play()
+        self.addSubview(self.arrowView)
+
+        let minPointAlpha = CGPoint(x: 70, y: 1)
+        let maxPointAlpha = CGPoint(x: 100, y: 0)
+        self.actionCallLabelAlphaCoefficients = calculateLinearCoefficients(
+            point1: minPointAlpha,
+            point2: maxPointAlpha
+        )
+
+        let minPointProgressOffset = CGPoint(x: Constants.lowerProgressOffsetBound, y: 0)
+        let maxPointProgressOffset = CGPoint(x: Constants.upperProgressOffsetBound, y: 100)
+        self.progressPercentCoefficients = calculateLinearCoefficients(point1: minPointProgressOffset, point2: maxPointProgressOffset)
+
+        let screenWidth = UIScreen.main.bounds.width
+        let minPointMoveX = CGPoint(x: Constants.actionCallIncreasingMovingThreshold, y: 0)
+        let maxPointMoveX = CGPoint(x: 100, y: screenWidth)
+        self.actionCallLabelMoveXCoefficients = calculateLinearCoefficients(point1: minPointMoveX, point2: maxPointMoveX)
+
+        // release label start
+
+        let minPointReleaseLabelAlpha = CGPoint(x: 70, y: 0)
+        let maxPointReleaseLabelAlpha = CGPoint(x: 100, y: 1)
+        self.releaseLabelAlphaCoefficients = calculateLinearCoefficients(
+            point1: minPointReleaseLabelAlpha,
+            point2: maxPointReleaseLabelAlpha
+        )
+
+        let minPointReleaseLabelMoveX = CGPoint(x: Constants.actionCallIncreasingMovingThreshold, y: -((screenWidth / 2) - 17))
+        let maxPointReleaseLabelMoveX = CGPoint(x: 100, y: 0 - 26)
+        self.releaseLabelMoveXCoefficients = calculateLinearCoefficients(point1: minPointReleaseLabelMoveX, point2: maxPointReleaseLabelMoveX)
+
+        // release label end
+
+        let minBlueGradientWidth = CGPoint(x: Constants.actionCallIncreasingMovingThreshold, y: 0)
+        let maxBlueGradientWidth = CGPoint(x: 100, y: 2 * screenWidth)
+        self.blueGradientViewFrameWidthCoefficients = calculateLinearCoefficients(point1: minBlueGradientWidth, point2: maxBlueGradientWidth)
+
+        let minArrowAngle = CGPoint(x: Constants.actionCallIncreasingMovingThreshold, y: .pi)
+        let maxArrowAngle = CGPoint(x: 100, y: 0)
+        self.arrowViewAngleCoefficients = calculateLinearCoefficients(point1: minArrowAngle, point2: maxArrowAngle)
+    }
+
+    // Two points are needed to build the line: (x1, y1); (x2, y2)
+    private func calculateLinearCoefficients(
+        point1: CGPoint,
+        point2: CGPoint
+    ) -> Coefficients {
+        let a: CGFloat = (point2.y - point1.y) / (point2.x - point1.x)
+        let b: CGFloat = point2.y - a * point2.x
+        return Coefficients(a: a, b: b)
+    }
+
+// MARK: - Variables
+
+    private let greyGradientView = GreyGradientView()
+    private let blueGradientView = BlueGradientView()
+    private let traceView = TraceView(frame: .zero)
+    private let releaseCropView = UIView(frame: .zero)
+    private var arrowView: AnimationView!
+    private let actionCallLabel = UILabel(frame: .zero)
+    private let releaseLabel = UILabel(frame: .zero)
+    private var progressPercentCoefficients = Coefficients(a: 0, b: 0)
+    private var actionCallLabelAlphaCoefficients = Coefficients(a: 0, b: 0)
+    private var actionCallLabelMoveXCoefficients = Coefficients(a: 0, b: 0)
+    private var releaseLabelAlphaCoefficients = Coefficients(a: 0, b: 0)
+    private var releaseLabelMoveXCoefficients = Coefficients(a: 0, b: 0)
+    private var blueGradientViewFrameWidthCoefficients = Coefficients(a: 0, b: 0)
+    private var arrowViewAngleCoefficients = Coefficients(a: 0, b: 0)
+
+// MARK: - Constants
+
+    private struct Constants {
+        static let lowerProgressOffsetBound: CGFloat = 0
+        static let upperProgressOffsetBound: CGFloat = 90
+        static let actionCallIncreasingMovingThreshold: CGFloat = 70
+    }
+//    private func setUpViews() {
+//      animationView.translatesAutoresizingMaskIntoConstraints = false
+//      addSubview(animationView)
+//      animationView.topAnchor.constraint(equalTo: topAnchor).isActive = true
+//      animationView.trailingAnchor.constraint(equalTo: trailingAnchor).isActive = true
+//      animationView.leadingAnchor.constraint(equalTo: leadingAnchor).isActive = true
+//      animationView.bottomAnchor.constraint(equalTo: bottomAnchor).isActive = true
+//    }
+}
+
+struct Coefficients {
+    let a: CGFloat
+    let b: CGFloat
+}
+
+extension CGRect {
+    /// Initializes a new CGRect with a center point and size.
+    init(center: CGPoint, size: CGSize) {
+        self.init(
+            x: center.x - (size.width * 0.5),
+            y: center.y - (size.height * 0.5),
+            width: size.width,
+            height: size.height)
+    }
 }
